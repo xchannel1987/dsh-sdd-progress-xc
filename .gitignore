@@ -1,4 +1,8 @@
-node_modules/
-lib/
+# 构建产物
 *.tgz
+
+# 依赖
+node_modules/
+
+# 系统
 .DS_Store

@@ -1,6 +1,6 @@
 {
   "name": "dsh-sdd-progress-xc",
-  "version": "0.1.0",
+  "version": "0.1.7",
   "description": "DSH web plugin: right-sidebar tab showing SDD task progress (todos) and ledger (progress.md) for the current session.",
   "type": "module",
   "main": "./lib/index.js",
@@ -19,7 +19,9 @@
     "lib",
     "cordis.patch.yml",
     "README.md",
-    "LICENSE"
+    "README_EN.md",
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "dsh": {
     "bundle": {
@@ -78,6 +80,17 @@
     "dsh": ">=0.1.0-rc.6"
   },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xchannel1987/dsh-sdd-progress-xc.git"
+  },
+  "bugs": {
+    "url": "https://github.com/xchannel1987/dsh-sdd-progress-xc/issues"
+  },
+  "homepage": "https://github.com/xchannel1987/dsh-sdd-progress-xc#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "dsh",
     "deepseek-harness",
