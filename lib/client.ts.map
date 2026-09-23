@@ -1,0 +1,1 @@
+{"version":3,"file":"client.ts","names":[],"sources":["../src/client/index.d.ts"],"sourcesContent":["export declare const inject: string[];\nexport declare function apply(ctx: any): void;\n"],"mappings":";;;AAAA,IAAW,CAAC,UAAU;CAAC;OAAS,CAAC;CAAG,CAAC;AAAC;AACtC,IAAW,CAAC,SAAS;CAAC;OAAS,CAAC;CAAG,CAAC,EAAE;AAAC"}
