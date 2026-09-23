@@ -1,0 +1,4 @@
+# dsh-sdd-progress-xc bundle patch: mount into the profile.
+- insert:
+    - id: dsh-sdd-progress-xc
+      name: 'dsh-sdd-progress-xc'
