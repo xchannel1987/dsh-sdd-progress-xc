@@ -268,6 +268,43 @@ function extractRequirementName(cwd: string | undefined): string | null {
   return m ? m[1] : null
 }
 
+/**
+ * Scan the session's own content (tool args, message text) for
+ * "<root>/<name>/sdd/progress.md" path references, which SDD workflows write
+ * continuously. Root-agnostic: any enclosing directory works (no hard-coded
+ * "requirements" root). Returns the most frequently referenced requirement.
+ */
+function extractRequirementFromContent(content: string): { requirementName: string; ledgerPath: string } | null {
+  // Match <root>/<name>/sdd/progress.md with any root prefix (drive letter
+  // optional), accepting both / and \ separators.
+  const re = /((?:[A-Za-z]:)?[\\/][^"'`\s]*?[\\/])([^\\/"'`\s]+)[\\/]sdd[\\/]progress\.md/g
+  const counts = new Map<string, { count: number; root: string }>()
+  let m: RegExpExecArray | null
+  while ((m = re.exec(content)) !== null) {
+    const root = m[1]
+    const name = m[2]
+    if (!name || !root || name === 'sdd') continue
+    const cur = counts.get(name)
+    if (cur) cur.count++
+    else counts.set(name, { count: 1, root })
+  }
+  let bestName: string | null = null
+  let bestRoot = ''
+  let bestCount = 0
+  for (const [name, info] of counts) {
+    if (info.count > bestCount) {
+      bestName = name
+      bestRoot = info.root
+      bestCount = info.count
+    }
+  }
+  if (!bestName) return null
+  // Normalize separators to the platform default for reading.
+  const sep = bestRoot.includes('/') ? '/' : '\\'
+  const ledgerPath = bestRoot + bestName + sep + 'sdd' + sep + 'progress.md'
+  return { requirementName: bestName, ledgerPath }
+}
+
 function json(res: import('node:http').ServerResponse, status: number, payload: unknown): void {
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
@@ -308,9 +345,27 @@ export function apply(ctx: any, config: Config): void {
           }
           let { cwd, sessionId, todos } = parseSessionContent(content)
           if (sessionIdParam) sessionId = sessionIdParam
-          // MVP: requirement detection not yet implemented
-          const requirementName = 'none'
-          const ledger = ''
+          // Requirement resolution: scan the session's OWN content (tool args,
+          // message text) for "<root>/<name>/sdd/progress.md" references, which
+          // SDD workflows write continuously. Root-agnostic — no hard-coded
+          // directory name; the ledger is read from the exact path referenced
+          // in the session. On relative-path hits, config.requirementsRoot is
+          // used as an optional fallback prefix.
+          const hit = extractRequirementFromContent(content)
+          const requirementName = hit?.requirementName || 'none'
+          let ledger = ''
+          if (hit) {
+            const ledgerPath = hit.ledgerPath.startsWith('.') || !/[A-Za-z]:[\/]/.test(hit.ledgerPath)
+              ? (config.requirementsRoot ? join(config.requirementsRoot, hit.ledgerPath) : '')
+              : hit.ledgerPath
+            if (ledgerPath) {
+              try {
+                ledger = await readFile(ledgerPath, 'utf-8')
+              } catch {
+                ledger = ''
+              }
+            }
+          }
           return json(res, 200, {
             ok: true,
             sessionId,
