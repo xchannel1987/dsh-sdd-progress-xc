@@ -1,9 +1,10 @@
 /**
- * dsh-sdd-progress-xc — browser half (initial).
+ * dsh-sdd-progress-xc — browser half.
  *
  * Registers a right-sidebar tab showing SDD task progress + ledger.
  */
-import { useState, useEffect, useCallback, createElement as h } from 'react'
+import { useState, useEffect, useCallback, useMemo, createElement as h } from 'react'
+import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SidebarRightTabDefinition } from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 
 export const inject = ['slots', 'sidebarRightTabs']
@@ -24,27 +25,6 @@ interface ProgressData {
   todos?: TodoItem[]
   ledger?: string
   error?: string
-}
-
-// ── Simple markdown renderer (MVP, line-based) ──
-
-function renderMarkdown(md: string): string {
-  if (!md) return ''
-  let html = md
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/^### (.+)$/gm, '<h4 style="margin:8px 0 4px;font-size:13px">$1</h4>')
-    .replace(/^## (.+)$/gm, '<h3 style="margin:12px 0 6px;font-size:14px">$1</h3>')
-    .replace(/^# (.+)$/gm, '<h2 style="margin:16px 0 8px;font-size:15px">$1</h2>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code style="background:#f0f0f0;padding:1px 4px;border-radius:3px;font-size:12px">$1</code>')
-    .replace(/^- (.+)$/gm, '<li style="margin:2px 0;list-style:none">$1</li>')
-    .replace(/^---$/gm, '<hr style="margin:12px 0;border:none;border-top:1px solid #e0e0e0">')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color:#4f7cff">$1</a>')
-    .replace(/\n\n/g, '</p><p style="margin:6px 0">')
-  return '<div style="font-size:12px;line-height:1.6">' + html + '</div>'
 }
 
 // ── Status helpers ──
@@ -75,10 +55,14 @@ function statusFg(status: string): string {
 
 // ── Main component ──
 
+type SddTab = 'tasks' | 'ledger'
+
 function SddProgressBody({ sessionId }: { sessionId?: string }) {
   const [data, setData] = useState<ProgressData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<SddTab>('tasks')
+  const codeLabels = useMemo(() => ({ copyLabel: '复制', copiedLabel: '已复制' }), [])
 
   const fetchProgress = useCallback(async () => {
     try {
@@ -108,11 +92,9 @@ function SddProgressBody({ sessionId }: { sessionId?: string }) {
   if (loading && !data) {
     return h('div', { style: { padding: 16, color: '#999', fontSize: 13 } }, 'Loading SDD progress...')
   }
-
   if (error) {
     return h('div', { style: { padding: 16, color: '#d32f2f', fontSize: 13 } }, 'Error: ' + error)
   }
-
   if (!data) {
     return h('div', { style: { padding: 16, color: '#999', fontSize: 13 } }, 'No data')
   }
@@ -122,77 +104,74 @@ function SddProgressBody({ sessionId }: { sessionId?: string }) {
   const active = todos.filter(t => t.status === 'in_progress').length
   const pending = todos.length - done - active
 
-  return h('div', {
-    style: { padding: 12, overflow: 'auto', fontSize: 13, lineHeight: 1.5, height: '100%' }
-  },
-    // Header
-    h('div', { style: { marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid #e0e0e0' } },
-      h('div', { style: { fontSize: 11, color: '#999', marginBottom: 4 } },
-        'Requirement: ' + (data.requirementName || 'unknown')
+  const tabBtn = function (tab: SddTab, label: string) {
+    const isActive = activeTab === tab
+    return h('button', {
+      key: tab,
+      onClick: () => setActiveTab(tab),
+      style: {
+        padding: '5px 12px',
+        fontSize: 12,
+        cursor: 'pointer',
+        border: 'none',
+        background: isActive ? '#eef2ff' : 'transparent',
+        color: isActive ? '#4f7cff' : '#666',
+        fontWeight: isActive ? 600 : 400,
+        borderRadius: '5px 5px 0 0',
+        marginRight: 2,
+      },
+    }, label)
+  }
+
+  return h('div', { style: { padding: 12, overflow: 'auto', fontSize: 13, lineHeight: 1.5, height: '100%', display: 'flex', flexDirection: 'column' as const } },
+    // Header with refresh button on the right
+    h('div', {
+      style: { marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid #e0e0e0', display: 'flex', alignItems: 'flex-start', gap: 8 },
+    },
+      h('div', { style: { flex: 1, minWidth: 0 } },
+        h('div', { style: { fontSize: 11, color: '#999', marginBottom: 4, wordBreak: 'break-all' as const } },
+          'Requirement: ' + (data.requirementName || 'unknown')
+        ),
+        h('div', { style: { fontSize: 11, color: '#999', wordBreak: 'break-all' as const } },
+          'Session: ' + (data.sessionId || 'unknown').slice(0, 12) + '...'
+        ),
       ),
-      h('div', { style: { fontSize: 11, color: '#999' } },
-        'Session: ' + (data.sessionId || 'unknown').slice(0, 12) + '...'
-      )
+      h('button', { onClick: fetchProgress, title: 'Refresh tasks and ledger',
+        style: { flexShrink: 0, padding: '3px 10px', fontSize: 11, lineHeight: '16px',
+          border: '1px solid #ddd', borderRadius: 4, background: '#fafafa', cursor: 'pointer', color: '#555' },
+      }, '↻ Refresh'),
     ),
 
-    // Summary pills
-    h('div', { style: { display: 'flex', gap: 8, marginBottom: 8, fontSize: 12 } },
-      h('span', { style: { color: '#2e7d32' } }, '✓ ' + done),
-      h('span', { style: { color: '#e65100' } }, '⏳ ' + active),
-      h('span', { style: { color: '#757575' } }, '○ ' + pending),
-      h('span', { style: { color: '#999' } }, '/ ' + todos.length + ' total')
+    // Tab bar
+    h('div', { style: { display: 'flex', marginBottom: 10, borderBottom: '1px solid #e5e5e5' } },
+      tabBtn('tasks', 'Tasks'),
+      tabBtn('ledger', 'Progress Ledger'),
     ),
 
-    // Tasks list
-    todos.length > 0 && h('div', { style: { marginBottom: 16 } },
-      h('div', { style: { fontWeight: 600, fontSize: 13, marginBottom: 6 } }, 'Tasks'),
-      ...todos.map((t, i) =>
-        h('div', {
-          key: i,
-          style: {
-            padding: '5px 8px',
-            marginBottom: 3,
-            background: statusBg(t.status),
-            borderRadius: 4,
-            fontSize: 12,
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: 6,
-          }
-        },
-          h('span', { style: { color: statusFg(t.status), flexShrink: 0 } }, statusIcon(t.status)),
-          h('span', {
-            style: {
-              color: t.status === 'completed' ? '#999' : '#333',
-              textDecoration: t.status === 'completed' ? 'line-through' : 'none',
-            }
-          }, t.content)
-        )
-      )
+    // Content area by tab
+    activeTab === 'tasks' && h('div', { style: { flex: 1, overflow: 'auto' } },
+      h('div', { style: { display: 'flex', gap: 8, marginBottom: 8, fontSize: 12 } },
+        h('span', { style: { color: '#2e7d32' } }, '✓ ' + done),
+        h('span', { style: { color: '#e65100' } }, '⏳ ' + active),
+        h('span', { style: { color: '#757575' } }, '○ ' + pending),
+        h('span', { style: { color: '#999' } }, '/ ' + todos.length + ' total'),
+      ),
+      todos.length > 0
+        ? todos.map((t, i) =>
+            h('div', { key: i, style: { padding: '5px 8px', marginBottom: 3, background: statusBg(t.status),
+              borderRadius: 4, fontSize: 12, display: 'flex', alignItems: 'flex-start', gap: 6 } },
+              h('span', { style: { color: statusFg(t.status), flexShrink: 0 } }, statusIcon(t.status)),
+              h('span', { style: { color: t.status === 'completed' ? '#999' : '#333', textDecoration: t.status === 'completed' ? 'line-through' : 'none' } }, t.content),
+            )
+          )
+        : h('div', { style: { color: '#999', fontSize: 12, padding: '8px 0' } }, 'No tasks yet'),
     ),
 
-    // Ledger
-    data.ledger && h('div', null,
-      h('div', {
-        style: {
-          fontWeight: 600, fontSize: 13, marginBottom: 6,
-          paddingTop: 8, borderTop: '1px solid #e0e0e0',
-        }
-      }, 'Progress Ledger'),
-      h('div', { dangerouslySetInnerHTML: { __html: renderMarkdown(data.ledger) } })
+    activeTab === 'ledger' && h('div', { style: { flex: 1, overflow: 'auto' } },
+      data.ledger
+        ? h(MarkdownText, { text: data.ledger, streaming: false, codeLabels })
+        : h('div', { style: { color: '#999', fontSize: 12, padding: '8px 0' } }, 'No progress ledger found'),
     ),
-
-    // Refresh
-    h('div', { style: { marginTop: 12, textAlign: 'center' as const } },
-      h('button', {
-        onClick: fetchProgress,
-        style: {
-          padding: '4px 12px', fontSize: 11,
-          border: '1px solid #ddd', borderRadius: 4,
-          background: '#fafafa', cursor: 'pointer',
-        }
-      }, '↻ Refresh')
-    )
   )
 }
 
