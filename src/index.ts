@@ -17,7 +17,12 @@ import { readdir, readFile, stat } from 'node:fs/promises'
 import { zstdDecompressSync } from 'node:zlib'
 import { join } from 'node:path'
 import os from 'node:os'
+import { createRequire } from 'node:module'
 import z from '@deepseek-ai/schemastery'
+
+/** Plugin version, read from package.json so /health can report it. */
+const require = createRequire(import.meta.url)
+const PLUGIN_VERSION = (require('../package.json') as { version?: string }).version ?? '0.0.0'
 
 export const name = 'dsh-sdd-progress-xc'
 export const inject = ['webServer']
@@ -265,7 +270,7 @@ function parseSessionContent(content: string): { cwd: string; sessionId: string;
 function extractRequirementName(cwd: string | undefined): string | null {
   if (!cwd) return null
   const m = cwd.match(/requirements[\\/](.+?)(?:[\\/]|$)/)
-  return m ? m[1] : null
+  return m ? (m[1] ?? null) : null
 }
 
 /**
@@ -327,7 +332,7 @@ export function apply(ctx: any, config: Config): void {
       const sub = url.pathname.slice(BASE.length).replace(/\/+$/, '') || '/'
       try {
         if (sub === '/health' && req.method === 'GET') {
-          return json(res, 200, { ok: true, plugin: 'dsh-sdd-progress-xc', version: '0.1.7' })
+          return json(res, 200, { ok: true, plugin: 'dsh-sdd-progress-xc', version: PLUGIN_VERSION })
         }
         if (sub === '/progress' && req.method === 'GET') {
           // Optional ?sessionId= targets a specific session; otherwise the
@@ -381,40 +386,4 @@ export function apply(ctx: any, config: Config): void {
       }
     },
   }), 'dsh-sdd-progress-xc: http routes')
-}
-/**
- * Scan the session's own content (tool args, message text) for
- * "<root>/<name>/sdd/progress.md" path references, which SDD workflows write
- * continuously. Root-agnostic: any enclosing directory works (no hard-coded
- * "requirements" root). Returns the most frequently referenced requirement.
- */
-function extractRequirementFromContent(content: string): { requirementName: string; ledgerPath: string } | null {
-  // Match <root>/<name>/sdd/progress.md with any root prefix (drive letter
-  // optional), accepting both / and \ separators.
-  const re = /((?:[A-Za-z]:)?[\\/][^"'`\s]*?[\\/])([^\\/"'`\s]+)[\\/]sdd[\\/]progress\.md/g
-  const counts = new Map<string, { count: number; root: string }>()
-  let m: RegExpExecArray | null
-  while ((m = re.exec(content)) !== null) {
-    const root = m[1]
-    const name = m[2]
-    if (!name || !root || name === 'sdd') continue
-    const cur = counts.get(name)
-    if (cur) cur.count++
-    else counts.set(name, { count: 1, root })
-  }
-  let bestName: string | null = null
-  let bestRoot = ''
-  let bestCount = 0
-  for (const [name, info] of counts) {
-    if (info.count > bestCount) {
-      bestName = name
-      bestRoot = info.root
-      bestCount = info.count
-    }
-  }
-  if (!bestName) return null
-  // Normalize separators to the platform default for reading.
-  const sep = bestRoot.includes('/') ? '/' : '\\'
-  const ledgerPath = bestRoot + bestName + sep + 'sdd' + sep + 'progress.md'
-  return { requirementName: bestName, ledgerPath }
 }

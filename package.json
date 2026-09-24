@@ -1,6 +1,6 @@
 {
   "name": "dsh-sdd-progress-xc",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "DSH web plugin: right-sidebar tab showing SDD task progress (todos) and ledger (progress.md) for the current session.",
   "type": "module",
   "main": "./lib/index.js",

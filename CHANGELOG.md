@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.8] - 2026-09-24
+
+### Fixed
+- **修复 `pnpm run typecheck` 失败（`tsc --noEmit` 报 3 个错）**——仓库此前有一个红的 typecheck
+  脚本，CI 也因此不敢开构建/类型门禁：
+  - `TS2393 Duplicate function implementation`（`src/index.ts`）：文件尾多出一份
+    `extractRequirementFromContent` 的**完整重复实现**（与正本逐字节相同，属误粘贴的死代码，
+    且因 JS 函数声明后者覆盖前者的语义而实际生效）。已删除重复副本，行为不变。
+  - `TS2322`（`extractRequirementName`）：`tsconfig` 开了 `noUncheckedIndexedAccess`，
+    正则捕获组 `m[1]` 类型为 `string | undefined`，补 `?? null` 显式收敛。
+- `/health` 的 `version` 字段不再硬编码（原为 `'0.1.7'`，会随发版漂移），改为经
+  `createRequire` 从 `package.json` 读取（对齐同族的 `dsh-power-xc`）。
+
+### Chore
+- **工程化规范化**：
+  - CI（`.github/workflows/ci.yml`）此前只校验 `lib/` 文件存在，现补齐 `pnpm run build` 与
+    `pnpm run typecheck`（对齐同族的 `dsh-mobile-xc`），防止 `src/` 改坏或忘记构建提交 `lib/`。
+  - 补充 `CLAUDE.md`（此前缺失）：**TS 族**（`src/` 权威、`lib/` 为构建产物）与 JS 族的差异、
+    构建/安装/CI 流程，以及 `strict` + `noUncheckedIndexedAccess` 下的注意事项。
+
 ## [0.1.7] - 2026-09-13
 
 ### Changed
